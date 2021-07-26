@@ -14,7 +14,7 @@ $ cd vagrant_lvm
 ~~~
 3. Clonar este repositorio:
 ~~~
-$ git clone 
+$ git clone https://github.com/mariocampos/Vagrant-LVM.git
 ~~~
 4. Arrancar y levantar la máquina con el siguiente comando:
 ~~~
@@ -162,6 +162,175 @@ Complete!
 8. Creamos la particion con el siguiente comando:
 ~~~
 [root@localhost ~]# fdisk /dev/sdb
+Welcome to fdisk (util-linux 2.23.2).
 
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+Device does not contain a recognized partition table
+Building a new DOS disklabel with disk identifier 0xa54d769d.
+
+Command (m for help):
 ~~~
-9. 
+9. Ponemos "o", para crear una paticion vacía.
+~~~
+Command (m for help): o
+Building a new DOS disklabel with disk identifier 0x22cb40cc.
+
+Command (m for help):
+~~~
+10. Ahora ponemos "n", para que cree una partición nueva y presionamos enter para crear la partición ente caso por defecto.
+~~~
+Command (m for help): n
+Partition type:
+   p   primary (0 primary, 0 extended, 4 free)
+   e   extended
+Select (default p):
+Using default response p
+Partition number (1-4, default 1):
+First sector (2048-10485759, default 2048):
+Using default value 2048
+Last sector, +sectors or +size{K,M,G} (2048-10485759, default 10485759):
+Using default value 10485759
+Partition 1 of type Linux and of size 5 GiB is set
+~~~
+11. Luego presionamos "t" para cambiar el tipo de la partición que en este caso será hexadecimal "8e".
+~~~
+Command (m for help): t
+Selected partition 1
+Hex code (type L to list all codes): 8e
+Changed type of partition 'Linux' to 'Linux LVM'
+~~~
+12. Digitamos "w" para escribir los cambios (guardar).
+~~~
+Command (m for help): w
+The partition table has been altered!
+
+Calling ioctl() to re-read partition table.
+Syncing disks.
+[root@localhost ~]#
+~~~
+13. Creamos un grupo de volumen, en este caso le pondré el grupo "unit".
+~~~
+[root@localhost ~]# vgcreate unit /dev/sdb1
+  Volume group "unit" successfully created
+~~~
+>Se puede crear un VG(Grupo de Volumen) como tantos PV(Volumen Físico) posibles.
+14. Ejecutamos lo siguiente para validar lo creado.
+~~~
+[root@localhost ~]# vgdisplay unit
+  --- Volume group ---
+  VG Name               unit
+  System ID
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  1
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                0
+  Open LV               0
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               <5.00 GiB
+  PE Size               4.00 MiB
+  Total PE              1279
+  Alloc PE / Size       0 / 0
+  Free  PE / Size       1279 / <5.00 GiB
+  VG UUID               7UhLz3-3dC0-Tg48-aE03-9YYT-8j6G-8ITqzq
+~~~
+15. Creamos un volumen lógico, le asignamos 1G de espacio y le ponemos el nombre "compartido_lvm".
+~~~
+[root@localhost ~]# lvcreate --size 1G --name compartido_lvm unit
+  Logical volume "compartido_lvm" created.
+~~~
+16. Validamos lo creado:
+~~~
+[root@localhost ~]# lvdisplay /dev/unit/compartido_lvm
+  --- Logical volume ---
+  LV Path                /dev/unit/compartido_lvm
+  LV Name                compartido_lvm
+  VG Name                unit
+  LV UUID                QWfxRE-RBnQ-CSV5-LSwC-72wq-F6eq-kbe9Y5
+  LV Write Access        read/write
+  LV Creation host, time localhost.localdomain, 2021-07-26 20:41:08 +0000
+  LV Status              available
+  # open                 0
+  LV Size                1.00 GiB
+  Current LE             256
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:0
+~~~
+17. Formateamos el volumen lógico creado y le asignamos un sistema de archivos "ext4".
+~~~
+[root@localhost ~]# mkfs.ext4 /dev/unit/compartido_lvm
+mke2fs 1.42.9 (28-Dec-2013)
+Filesystem label=
+OS type: Linux
+Block size=4096 (log=2)
+Fragment size=4096 (log=2)
+Stride=0 blocks, Stripe width=0 blocks
+65536 inodes, 262144 blocks
+13107 blocks (5.00%) reserved for the super user
+First data block=0
+Maximum filesystem blocks=268435456
+8 block groups
+32768 blocks per group, 32768 fragments per group
+8192 inodes per group
+Superblock backups stored on blocks:
+        32768, 98304, 163840, 229376
+
+Allocating group tables: done
+Writing inode tables: done
+Creating journal (8192 blocks): done
+Writing superblocks and filesystem accounting information: done
+~~~
+18. Creamos un punto de montaje:
+~~~
+[root@localhost ~]# mkdir -pv /var/prueba/prueba_lvm
+mkdir: created directory ‘/var/prueba’
+mkdir: created directory ‘/var/prueba/prueba_lvm’
+~~~
+19. Ahora montamos el volumen creado con el punto de montaje.
+~~~
+[root@localhost ~]# mount /dev/unit/compartido_lvm /var/prueba/prueba_lvm
+~~~
+20. Luego ejecutamos el siguiente comando para aumentar espacio al montaje creado.
+- Primero revisamos cuanto tiene de espacio:
+~~~
+[root@localhost ~]# df -h
+Filesystem                       Size  Used Avail Use% Mounted on
+devtmpfs                         111M     0  111M   0% /dev
+tmpfs                            118M     0  118M   0% /dev/shm
+tmpfs                            118M  8.5M  109M   8% /run
+tmpfs                            118M     0  118M   0% /sys/fs/cgroup
+/dev/sda1                         40G  3.5G   37G   9% /
+tmpfs                             24M     0   24M   0% /run/user/1000
+/dev/mapper/unit-compartido_lvm  976M  2.6M  907M   1% /var/prueba/prueba_lvm
+~~~
+- Luego ejecutamos el comando para aumentarle 1G más de espacio.
+~~~
+[root@localhost ~]# lvextend --size +1G --resizefs unit/compartido_lvm
+  Size of logical volume unit/compartido_lvm changed from 1.00 GiB (256 extents) to 2.00 GiB (512 extents).
+  Logical volume unit/compartido_lvm successfully resized.
+resize2fs 1.42.9 (28-Dec-2013)
+Filesystem at /dev/mapper/unit-compartido_lvm is mounted on /var/prueba/prueba_lvm; on-line resizing required
+old_desc_blocks = 1, new_desc_blocks = 1
+The filesystem on /dev/mapper/unit-compartido_lvm is now 524288 blocks long.
+~~~
+- Validamos que en la última línea aumentó de 976M a 2.0G.
+~~~
+[root@localhost ~]# df -h
+Filesystem                       Size  Used Avail Use% Mounted on
+devtmpfs                         111M     0  111M   0% /dev
+tmpfs                            118M     0  118M   0% /dev/shm
+tmpfs                            118M  8.5M  109M   8% /run
+tmpfs                            118M     0  118M   0% /sys/fs/cgroup
+/dev/sda1                         40G  3.5G   37G   9% /
+tmpfs                             24M     0   24M   0% /run/user/1000
+/dev/mapper/unit-compartido_lvm  2.0G  3.0M  1.9G   1% /var/prueba/prueba_lvm
+~~~
